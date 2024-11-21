@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Itens da Loja</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #007bff;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #ffffff;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        input {
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: #ffffff;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        li button {
+            margin-left: 10px;
+        }
+
+        .search-container, .update-container {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Gerenciar Itens da Loja</h1>
+
+    <form id="itemForm">
+        <input type="text" id="tipoProduto" placeholder="Tipo de Produto" required>
+        <input type="number" id="quantidade" placeholder="Quantidade" required>
+        <input type="text" id="unidade" placeholder="Unidade" required>
+        <button type="submit">Adicionar Item</button>
+    </form>
+
+    <div class="search-container">
+        <input type="number" id="searchId" placeholder="Buscar por ID">
+        <button id="searchButton">Buscar Item</button>
+    </div>
+
+    <div class="update-container" style="display: none;">
+        <h2>Atualizar Item</h2>
+        <input type="text" id="updateTipoProduto" placeholder="Novo Tipo de Produto">
+        <input type="number" id="updateQuantidade" placeholder="Nova Quantidade">
+        <input type="text" id="updateUnidade" placeholder="Nova Unidade">
+        <button id="updateButton">Atualizar Item</button>
+    </div>
+
+    <h2>Itens na Loja</h2>
+    <ul id="itemList"></ul>
+
+    <script>
+        const API_URL = 'http://localhost:3000/loja';
+        let currentItemId = null;
+
+        document.getElementById('itemForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const tipoProduto = document.getElementById('tipoProduto').value;
+            const quantidade = document.getElementById('quantidade').value;
+            const unidade = document.getElementById('unidade').value;
+
+            try {
+                await addItem({ tipo_produto: tipoProduto, quantidade, unidade });
+                document.getElementById('itemForm').reset();
+                await fetchItems();
+            } catch (error) {
+                console.error('Erro ao adicionar item:', error);
+                alert('Erro ao adicionar item. Tente novamente.');
+            }
+        });
+
+        document.getElementById('searchButton').addEventListener('click', async () => {
+            const searchId = document.getElementById('searchId').value;
+            if (searchId) {
+                await fetchItemById(searchId);
+            } else {
+                alert('Por favor, insira um ID.');
+            }
+        });
+
+        document.getElementById('updateButton').addEventListener('click', async () => {
+            if (currentItemId) {
+                const tipoProduto = document.getElementById('updateTipoProduto').value;
+                const quantidade = document.getElementById('updateQuantidade').value;
+                const unidade = document.getElementById('updateUnidade').value;
+
+                try {
+                    await updateItem(currentItemId, { tipo_produto: tipoProduto, quantidade, unidade });
+                    document.getElementById('updateTipoProduto').value = '';
+                    document.getElementById('updateQuantidade').value = '';
+                    document.getElementById('updateUnidade').value = '';
+                    currentItemId = null;
+                    document.querySelector('.update-container').style.display = 'none';
+                    await fetchItems();
+                } catch (error) {
+                    console.error('Erro ao atualizar item:', error);
+                    alert('Erro ao atualizar item. Tente novamente.');
+                }
+            } else {
+                alert('Nenhum item selecionado para atualização.');
+            }
+        });
+
+        async function fetchItems() {
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) throw new Error('Erro ao buscar itens');
+                
+                const data = await response.json();
+                const itemList = document.getElementById('itemList');
+                itemList.innerHTML = '';
+
+                data.itens.forEach(item => {
+                    const li = document.createElement('li');
+                    li.textContent = `ID: ${item.id} - ${item.tipo_produto} - ${item.quantidade} - ${item.unidade}`;
+                    
+                    const updateButton = document.createElement('button');
+                    updateButton.textContent = 'Atualizar';
+                    updateButton.onclick = () => openUpdateForm(item);
+                    
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = 'Deletar';
+                    deleteButton.onclick = () => deleteItem(item.id);
+                    
+                    li.appendChild(updateButton);
+                    li.appendChild(deleteButton);
+                    itemList.appendChild(li);
+                });
+            } catch (error) {
+                console.error('Erro ao buscar itens:', error);
+                alert('Erro ao buscar itens. Tente novamente.');
+            }
+        }
+
+        async function fetchItemById(id) {
+            try {
+                const response = await fetch(`${API_URL}/${id}`);
+                if (!response.ok) throw new Error('Erro ao buscar item');
+                
+                const data = await response.json();
+                const itemList = document.getElementById('itemList');
+                itemList.innerHTML = ''; // Limpa a lista atual
+
+                const li = document.createElement('li');
+                li.textContent = `ID: ${data.item.id} - ${data.item.tipo_produto} - ${data.item.quantidade} - ${data.item.unidade}`;
+                
+                const updateButton = document.createElement('button');
+                updateButton.textContent = 'Atualizar';
+                updateButton.onclick = () => openUpdateForm(data.item);
+                
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Deletar';
+                deleteButton.onclick = () => deleteItem(data.item.id);
+                
+                li.appendChild(updateButton);
+                li.appendChild(deleteButton);
+                itemList.appendChild(li);
+            } catch (error) {
+                console.error('Erro ao buscar item:', error);
+                alert('Erro ao buscar item. Tente novamente.');
+            }
+        }
+
+        async function updateItem(id, item) {
+            try {
+                const response = await fetch(`${API_URL}/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(item),
+                });
+                if (!response.ok) throw new Error('Erro ao atualizar item');
+            } catch (error) {
+                console.error('Erro ao atualizar item:', error);
+                alert('Erro ao atualizar item. Tente novamente.');
+            }
+        }
+
+        async function addItem(item) {
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(item),
+                });
+                if (!response.ok) throw new Error('Erro ao adicionar item');
+            } catch (error) {
+                console.error('Erro ao adicionar item:', error);
+                alert('Erro ao adicionar item. Tente novamente.');
+            }
+        }
+
+        async function deleteItem(id) {
+            try {
+                const response = await fetch(`${API_URL}/${id}`, {
+                    method: 'DELETE',
+                });
+                if (!response.ok) throw new Error('Erro ao deletar item');
+                
+                await fetchItems();
+            } catch (error) {
+                console.error('Erro ao deletar item:', error);
+                alert('Erro ao deletar item. Tente novamente.');
+            }
+        }
+
+        function openUpdateForm(item) {
+            document.getElementById('updateTipoProduto').value = item.tipo_produto;
+            document.getElementById('updateQuantidade').value = item.quantidade;
+            document.getElementById('updateUnidade').value = item.unidade;
+            currentItemId = item.id;
+            document.querySelector('.update-container').style.display = 'block';
+        }
+
+        fetchItems();
+    </script>
+</body>
+</html>
